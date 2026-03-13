@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard Alertas Prevención de Riesgo</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
@@ -132,22 +135,44 @@
       height: 100% !important;
     }
 
+    .top-ten-wrap {
+      margin-top: 30px;
+    }
+
+    .top-ten {
+      background: #1e293b;
+      padding: 16px;
+      border-radius: 10px;
+    }
+
+    .top-ten h3 {
+      margin-bottom: 12px;
+    }
+
+    .top-ten-chart {
+      margin-top: 20px;
+    }
+
     @media (max-width: 1200px) {
       .filters {
         grid-template-columns: repeat(2, minmax(180px, 1fr));
       }
+
       .kpis {
         grid-template-columns: repeat(3, 1fr);
       }
+
       .grid {
         grid-template-columns: 1fr;
       }
+
       .full {
         grid-column: auto;
       }
     }
   </style>
 </head>
+
 <body>
 
   <h1>Dashboard Prevención de Riesgo</h1>
@@ -239,17 +264,28 @@
     <div class="chart full">
       <h3>Distribución horaria</h3>
       <p class="chart-note">Agregación por bloques horarios, con picos operativos más realistas</p>
-          <div class="filter">
-      <label for="hourGrouping">Agrupación horaria</label>
-      <select id="hourGrouping">
-        <option value="1">1 hora</option>
-        <option value="2">2 horas</option>
-        <option value="4">4 horas</option>
-        <option value="8">8 horas</option>
-      </select>
-    </div>
+      <div class="filter">
+        <label for="hourGrouping">Agrupación horaria</label>
+        <select id="hourGrouping">
+          <option value="1">1 hora</option>
+          <option value="2">2 horas</option>
+          <option value="4">4 horas</option>
+          <option value="8">8 horas</option>
+        </select>
+      </div>
       <div class="hourly-wrap">
         <canvas id="hourly"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top 10 conductores con más eventos -->
+  <div class="top-ten-wrap">
+    <div class="top-ten">
+      <h3>Top 10 Vehículos con más Eventos</h3>
+      <p class="chart-note">Barras apiladas horizontales por tipo de alerta</p>
+      <div class="top-ten-chart">
+        <canvas id="topTenChart"></canvas>
       </div>
     </div>
   </div>
@@ -574,6 +610,86 @@
       renderHourly();
     }
 
+    // Generación de datos para top 10 conductores
+    function generateTop10() {
+      const drivers = [];
+      const driverNames = [
+        "VH-101", "VH-205", "VH-318", "VH-404", "VH-509", "VH-612", "VH-714", "VH-829", "VH-935", "VH-1040"
+      ];
+
+      for (let i = 0; i < 10; i++) {
+        let driverData = { name: driverNames[i] };
+        alertTypes.forEach(type => {
+          driverData[type] = Math.round(randomInt(5, 100) * weights[type]); // redondeo para enteros
+        });
+        drivers.push(driverData);
+      }
+
+      // Ordenar de mayor a menor por TOTAL de eventos (solo suma de alertas)
+      drivers.sort((a, b) => {
+        const totalA = alertTypes.reduce((acc, type) => acc + (a[type] || 0), 0);
+        const totalB = alertTypes.reduce((acc, type) => acc + (b[type] || 0), 0);
+        return totalB - totalA;
+      });
+
+      return drivers;
+    }
+
+    function renderTop10Chart(drivers) {
+      const labels = drivers.map(driver => driver.name);
+      const datasets = alertTypes.map(type => ({
+        label: type,
+        data: drivers.map(driver => driver[type]),
+        backgroundColor: colors[type],
+        stack: "top10"
+      }));
+
+      new Chart(document.getElementById("topTenChart"), {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: datasets
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              stacked: true,
+              ticks: { color: "white" },
+              grid: { color: "rgba(255,255,255,0.08)" }
+            },
+            y: {
+              stacked: true,
+              ticks: { color: "white" },
+              grid: { color: "rgba(255,255,255,0.08)" },
+              // Control del grosor:
+              barPercentage: 0.3,        // Ancho de cada barra (0.3 = 30% del espacio disponible)
+              categoryPercentage: 0.8     // Espacio reservado para cada categoría
+            }
+          },
+          plugins: {
+            legend: { labels: { color: "white" } }
+          }
+        }
+      });
+    }
+
+    function renderAll() {
+      const data = generateData();
+      if (!data) return;  // si hay error (rango inválido) salimos sin generar top10
+
+      currentData = data;
+      const totals = updateKPIs(data);
+      renderPie(totals);
+      renderDow(data.dowStacked);
+      renderHourly();
+
+      const top10 = generateTop10();
+      renderTop10Chart(top10);
+    }
+
     document.getElementById("groupSelect").addEventListener("change", renderAll);
     document.getElementById("vehicleSelect").addEventListener("change", renderAll);
     document.getElementById("startDate").addEventListener("change", renderAll);
@@ -583,4 +699,5 @@
     renderAll();
   </script>
 </body>
+
 </html>
